@@ -1,4 +1,5 @@
 import VideoDownloader from "@/components/VideoDownloader";
+import TutorialSection from "@/components/TutorialSection";
 
 const Index = () => {
   return (
@@ -10,6 +11,7 @@ const Index = () => {
         <p className="text-gray-400 text-center mb-8">
           Download up to 10 videos simultaneously in any quality, including 4K
         </p>
+        <TutorialSection />
         <VideoDownloader />
       </div>
     </div>
