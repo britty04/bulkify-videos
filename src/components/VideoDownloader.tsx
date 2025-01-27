@@ -9,8 +9,12 @@ interface VideoInfo {
   id: string;
   url: string;
   quality: string;
+  format: string;
   isMP3: boolean;
   progress: number;
+  estimatedTime?: string;
+  fileSize?: string;
+  audioBitrate?: string;
 }
 
 const VideoDownloader = () => {
@@ -20,9 +24,11 @@ const VideoDownloader = () => {
     const newVideos = urls.map((url) => ({
       id: Math.random().toString(36).substr(2, 9),
       url,
-      quality: "720p",
+      quality: "Auto",
+      format: "MP4",
       isMP3: false,
       progress: 0,
+      audioBitrate: "192kbps",
     }));
     setVideos([...videos, ...newVideos]);
   };
@@ -35,10 +41,26 @@ const VideoDownloader = () => {
     );
   };
 
+  const handleFormatChange = (id: string, format: string) => {
+    setVideos(
+      videos.map((video) =>
+        video.id === id ? { ...video, format } : video
+      )
+    );
+  };
+
   const handleMP3Toggle = (id: string) => {
     setVideos(
       videos.map((video) =>
         video.id === id ? { ...video, isMP3: !video.isMP3 } : video
+      )
+    );
+  };
+
+  const handleAudioBitrateChange = (id: string, bitrate: string) => {
+    setVideos(
+      videos.map((video) =>
+        video.id === id ? { ...video, audioBitrate: bitrate } : video
       )
     );
   };
@@ -49,21 +71,30 @@ const VideoDownloader = () => {
       return;
     }
 
-    // Simulate download progress
+    // Simulate download progress with estimated time and file size
     videos.forEach((video) => {
       let progress = 0;
+      const totalSize = Math.floor(Math.random() * 500) + 100; // Random file size between 100-600MB
       const interval = setInterval(() => {
-        progress += 10;
+        progress += 5;
+        const remainingTime = Math.ceil((100 - progress) / 5) * 2; // Rough estimation
         setVideos((prev) =>
           prev.map((v) =>
-            v.id === video.id ? { ...v, progress } : v
+            v.id === video.id
+              ? {
+                  ...v,
+                  progress,
+                  estimatedTime: `${remainingTime} seconds`,
+                  fileSize: `${totalSize}MB`,
+                }
+              : v
           )
         );
         if (progress >= 100) {
           clearInterval(interval);
           toast.success(`Download complete: ${video.url}`);
         }
-      }, 500);
+      }, 1000);
     });
   };
 
@@ -77,7 +108,9 @@ const VideoDownloader = () => {
             key={video.id}
             video={video}
             onQualityChange={handleQualityChange}
+            onFormatChange={handleFormatChange}
             onMP3Toggle={handleMP3Toggle}
+            onAudioBitrateChange={handleAudioBitrateChange}
           />
         ))}
       </div>
