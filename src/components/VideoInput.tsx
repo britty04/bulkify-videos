@@ -93,7 +93,7 @@ const VideoInput = ({ onSubmit, maxVideos }: VideoInputProps) => {
   };
 
   return (
-    <Card className="p-6 bg-secondary/5 backdrop-blur-sm">
+    <Card className="p-6 bg-secondary/5 backdrop-blur-sm border-gray-600/30 hover:border-gray-600/50 transition-colors">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="flex flex-col space-y-2">
           <textarea
@@ -102,7 +102,7 @@ const VideoInput = ({ onSubmit, maxVideos }: VideoInputProps) => {
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            placeholder={`Enter YouTube URLs (one per line, max ${maxVideos} more) or drag and drop links/text file here`}
+            placeholder="Enter YouTube URLs (one per line) or drag and drop links/text file here"
             className={`w-full h-32 px-4 py-2 text-gray-200 bg-secondary/20 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-colors ${
               isDragging
                 ? "border-primary border-dashed border-2"
@@ -117,7 +117,7 @@ const VideoInput = ({ onSubmit, maxVideos }: VideoInputProps) => {
           <Button
             type="submit"
             disabled={!url}
-            className="flex-1 bg-primary hover:bg-primary-hover text-white flex items-center justify-center gap-2"
+            className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white flex items-center justify-center gap-2"
           >
             <Plus className="w-5 h-5" />
             Add Videos

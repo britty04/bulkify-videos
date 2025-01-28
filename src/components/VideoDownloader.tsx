@@ -2,9 +2,10 @@ import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import VideoInput from "./VideoInput";
 import VideoPreview from "./VideoPreview";
-import { Download, History, Clipboard } from "lucide-react";
+import { Download, History, Clipboard, Youtube } from "lucide-react";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
+import { motion } from "framer-motion";
 
 interface VideoInfo {
   id: string;
@@ -31,13 +32,11 @@ const VideoDownloader = () => {
   const [clipboardEnabled, setClipboardEnabled] = useState(false);
 
   useEffect(() => {
-    // Load download history from localStorage
     const savedHistory = localStorage.getItem("downloadHistory");
     if (savedHistory) {
       setHistory(JSON.parse(savedHistory));
     }
 
-    // Setup clipboard monitoring if enabled
     if (clipboardEnabled && navigator.clipboard) {
       const checkClipboard = async () => {
         try {
@@ -65,7 +64,7 @@ const VideoDownloader = () => {
       isMP3: false,
       progress: 0,
       audioBitrate: "192kbps",
-      fileName: url.split("v=")[1] || url, // Basic extraction of video ID as filename
+      fileName: url.split("v=")[1] || url,
     }));
     setVideos([...videos, ...newVideos]);
   };
@@ -117,49 +116,55 @@ const VideoDownloader = () => {
         video,
       })),
       ...history,
-    ].slice(0, 50); // Keep only last 50 downloads
+    ].slice(0, 100); // Increased history limit to 100
     
     setHistory(newHistory);
     localStorage.setItem("downloadHistory", JSON.stringify(newHistory));
   };
 
+  const redownloadFromHistory = async (historyItem: DownloadHistory) => {
+    const video = historyItem.video;
+    setVideos(prev => [...prev, { ...video, progress: 0, id: Math.random().toString(36).substr(2, 9) }]);
+    toast.success("Video added to download queue");
+  };
+
   const simulateFileDownload = async (video: VideoInfo) => {
-    // Simulated file sizes based on quality
     const qualitySizes = {
-      "4K": 2048,
-      "1440p": 1024,
-      "1080p": 512,
-      "720p": 256,
-      "480p": 128,
-      "360p": 64,
-      "Auto": 256
+      "4K": 2048 * 1024 * 1024,
+      "1440p": 1024 * 1024 * 1024,
+      "1080p": 512 * 1024 * 1024,
+      "720p": 256 * 1024 * 1024,
+      "480p": 128 * 1024 * 1024,
+      "360p": 64 * 1024 * 1024,
+      "Auto": 512 * 1024 * 1024
     };
 
-    const format = video.isMP3 ? "mp3" : video.format.toLowerCase();
-    const quality = video.quality as keyof typeof qualitySizes;
-    const fileSize = qualitySizes[quality];
-    
-    // Create a blob with actual size
-    const response = await fetch(video.url);
-    const blob = await response.blob();
-    const resizedBlob = new Blob([blob], { type: `video/${format}` });
-    
-    // Create download link
-    const url = window.URL.createObjectURL(resizedBlob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${video.fileName || 'video'}.${format}`;
-    
-    // For mobile devices
-    if (/Android|iPhone/i.test(navigator.userAgent)) {
-      a.target = '_blank';
-      a.rel = 'noopener';
+    try {
+      const format = video.isMP3 ? "mp3" : video.format.toLowerCase();
+      const quality = video.quality as keyof typeof qualitySizes;
+      const fileSize = qualitySizes[quality];
+      
+      const response = await fetch(video.url);
+      const blob = await response.blob();
+      const resizedBlob = new Blob([blob], { type: `video/${format}`, size: fileSize });
+      
+      const url = window.URL.createObjectURL(resizedBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${video.fileName || 'video'}.${format}`;
+      
+      if (/Android|iPhone/i.test(navigator.userAgent)) {
+        a.target = '_blank';
+        a.rel = 'noopener';
+      }
+      
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.error("Download failed. Please try again.");
     }
-    
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
   };
 
   const handleDownload = async () => {
@@ -197,14 +202,27 @@ const VideoDownloader = () => {
 
   return (
     <div className="space-y-6">
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="text-center space-y-4 mb-8"
+      >
+        <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-400 to-pink-600 bg-clip-text text-transparent">
+          TubeHarbor Pro
+        </h1>
+        <p className="text-gray-400 text-lg">
+          Download unlimited YouTube videos in any quality, format, and resolution
+        </p>
+      </motion.div>
+
       <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
-        <VideoInput onSubmit={handleUrlsSubmit} maxVideos={10 - videos.length} />
+        <VideoInput onSubmit={handleUrlsSubmit} maxVideos={1000} />
         
         <div className="flex gap-4">
           <Button
             variant="outline"
             onClick={() => setClipboardEnabled(!clipboardEnabled)}
-            className="bg-secondary/10 hover:bg-secondary/20 text-white border-gray-600"
+            className="bg-secondary/10 hover:bg-secondary/20 text-white border-gray-600 backdrop-blur-sm"
           >
             <Clipboard className="w-5 h-5 mr-2" />
             {clipboardEnabled ? 'Disable' : 'Enable'} Clipboard Monitor
@@ -213,7 +231,7 @@ const VideoDownloader = () => {
           <Button
             variant="outline"
             onClick={() => setShowHistory(!showHistory)}
-            className="bg-secondary/10 hover:bg-secondary/20 text-white border-gray-600"
+            className="bg-secondary/10 hover:bg-secondary/20 text-white border-gray-600 backdrop-blur-sm"
           >
             <History className="w-5 h-5 mr-2" />
             Download History
@@ -222,34 +240,44 @@ const VideoDownloader = () => {
       </div>
 
       {showHistory && history.length > 0 && (
-        <Card className="p-4 bg-secondary/10 backdrop-blur-sm border-gray-600">
-          <h3 className="text-lg font-semibold mb-4 text-white">Recent Downloads</h3>
-          <div className="space-y-2">
-            {history.map((item) => (
-              <div
-                key={`${item.timestamp}-${item.video.id}`}
-                className="flex items-center justify-between p-2 rounded-lg hover:bg-secondary/20"
-              >
-                <div className="flex-1 truncate mr-4">
-                  <div className="text-sm font-medium text-white">
-                    {item.video.fileName || item.video.url}
-                  </div>
-                  <div className="text-xs text-gray-300">
-                    {new Date(item.timestamp).toLocaleString()}
-                  </div>
-                </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => redownloadFromHistory(item)}
-                  className="hover:bg-primary/20 text-white"
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+        >
+          <Card className="p-4 bg-secondary/10 backdrop-blur-sm border-gray-600">
+            <h3 className="text-lg font-semibold mb-4 text-white flex items-center gap-2">
+              <History className="w-5 h-5" />
+              Recent Downloads
+            </h3>
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {history.map((item) => (
+                <motion.div
+                  key={`${item.timestamp}-${item.video.id}`}
+                  whileHover={{ scale: 1.02 }}
+                  className="flex items-center justify-between p-3 rounded-lg hover:bg-secondary/20 transition-colors"
                 >
-                  <Download className="w-4 h-4" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        </Card>
+                  <div className="flex-1 truncate mr-4">
+                    <div className="text-sm font-medium text-white flex items-center gap-2">
+                      <Youtube className="w-4 h-4 text-red-500" />
+                      {item.video.fileName || item.video.url}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      {new Date(item.timestamp).toLocaleString()}
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => redownloadFromHistory(item)}
+                    className="hover:bg-primary/20 text-white"
+                  >
+                    <Download className="w-4 h-4" />
+                  </Button>
+                </motion.div>
+              ))}
+            </div>
+          </Card>
+        </motion.div>
       )}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -267,15 +295,19 @@ const VideoDownloader = () => {
       </div>
 
       {videos.length > 0 && (
-        <div className="flex justify-center">
+        <motion.div
+          className="flex justify-center"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
           <Button
             onClick={handleDownload}
-            className="bg-primary hover:bg-primary-hover text-white px-6 py-3 rounded-lg flex items-center gap-2 text-lg font-semibold"
+            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-8 py-4 rounded-lg flex items-center gap-3 text-lg font-semibold shadow-lg hover:shadow-xl transition-all"
           >
             <Download className="w-6 h-6" />
             Start Download
           </Button>
-        </div>
+        </motion.div>
       )}
     </div>
   );
