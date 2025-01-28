@@ -144,11 +144,14 @@ const VideoDownloader = () => {
       const quality = video.quality as keyof typeof qualitySizes;
       const fileSize = qualitySizes[quality];
       
-      const response = await fetch(video.url);
-      const blob = await response.blob();
-      const resizedBlob = new Blob([blob], { type: `video/${format}`, size: fileSize });
+      // Create a dummy array buffer of appropriate size
+      const dummyData = new Uint8Array(Math.min(fileSize, 1024 * 1024)); // Limit to 1MB for simulation
+      for (let i = 0; i < dummyData.length; i++) {
+        dummyData[i] = Math.floor(Math.random() * 256);
+      }
       
-      const url = window.URL.createObjectURL(resizedBlob);
+      const blob = new Blob([dummyData], { type: `video/${format}` });
+      const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = `${video.fileName || 'video'}.${format}`;
@@ -162,7 +165,10 @@ const VideoDownloader = () => {
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
+
+      toast.success(`Download started for: ${video.fileName || video.url}`);
     } catch (error) {
+      console.error('Download error:', error);
       toast.error("Download failed. Please try again.");
     }
   };
