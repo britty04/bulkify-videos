@@ -5,6 +5,7 @@ import { Progress } from "./ui/progress";
 import { Info, Download, Edit2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { Input } from "./ui/input";
+import { Button } from "./ui/button";
 import { useState } from "react";
 import { toast } from "sonner";
 
