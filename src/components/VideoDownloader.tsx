@@ -1,29 +1,13 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import VideoInput from "./VideoInput";
-import VideoPreview from "./VideoPreview";
-import { Download, History, Clipboard, Youtube } from "lucide-react";
+import VideoList from "./VideoList";
+import DownloadHistoryComponent from "./DownloadHistory";
+import { Download, History, Clipboard } from "lucide-react";
 import { Button } from "./ui/button";
-import { Card } from "./ui/card";
 import { motion } from "framer-motion";
-
-interface VideoInfo {
-  id: string;
-  url: string;
-  quality: string;
-  format: string;
-  isMP3: boolean;
-  progress: number;
-  estimatedTime?: string;
-  fileSize?: string;
-  audioBitrate?: string;
-  fileName?: string;
-}
-
-interface DownloadHistory {
-  timestamp: number;
-  video: VideoInfo;
-}
+import { VideoInfo, DownloadHistory } from "../types/video";
+import { downloadVideo } from "../api/youtube";
 
 const VideoDownloader = () => {
   const [videos, setVideos] = useState<VideoInfo[]>([]);
@@ -70,43 +54,23 @@ const VideoDownloader = () => {
   };
 
   const handleQualityChange = (id: string, quality: string) => {
-    setVideos(
-      videos.map((video) =>
-        video.id === id ? { ...video, quality } : video
-      )
-    );
+    setVideos(videos.map((video) => (video.id === id ? { ...video, quality } : video)));
   };
 
   const handleFormatChange = (id: string, format: string) => {
-    setVideos(
-      videos.map((video) =>
-        video.id === id ? { ...video, format } : video
-      )
-    );
+    setVideos(videos.map((video) => (video.id === id ? { ...video, format } : video)));
   };
 
   const handleMP3Toggle = (id: string) => {
-    setVideos(
-      videos.map((video) =>
-        video.id === id ? { ...video, isMP3: !video.isMP3 } : video
-      )
-    );
+    setVideos(videos.map((video) => (video.id === id ? { ...video, isMP3: !video.isMP3 } : video)));
   };
 
   const handleAudioBitrateChange = (id: string, bitrate: string) => {
-    setVideos(
-      videos.map((video) =>
-        video.id === id ? { ...video, audioBitrate: bitrate } : video
-      )
-    );
+    setVideos(videos.map((video) => (video.id === id ? { ...video, audioBitrate: bitrate } : video)));
   };
 
   const handleFileNameChange = (id: string, fileName: string) => {
-    setVideos(
-      videos.map((video) =>
-        video.id === id ? { ...video, fileName } : video
-      )
-    );
+    setVideos(videos.map((video) => (video.id === id ? { ...video, fileName } : video)));
   };
 
   const saveToHistory = (completedVideos: VideoInfo[]) => {
@@ -116,7 +80,7 @@ const VideoDownloader = () => {
         video,
       })),
       ...history,
-    ].slice(0, 100); // Increased history limit to 100
+    ].slice(0, 100);
     
     setHistory(newHistory);
     localStorage.setItem("downloadHistory", JSON.stringify(newHistory));
@@ -128,51 +92,6 @@ const VideoDownloader = () => {
     toast.success("Video added to download queue");
   };
 
-  const simulateFileDownload = async (video: VideoInfo) => {
-    const qualitySizes = {
-      "4K": 2048 * 1024 * 1024,
-      "1440p": 1024 * 1024 * 1024,
-      "1080p": 512 * 1024 * 1024,
-      "720p": 256 * 1024 * 1024,
-      "480p": 128 * 1024 * 1024,
-      "360p": 64 * 1024 * 1024,
-      "Auto": 512 * 1024 * 1024
-    };
-
-    try {
-      const format = video.isMP3 ? "mp3" : video.format.toLowerCase();
-      const quality = video.quality as keyof typeof qualitySizes;
-      const fileSize = qualitySizes[quality];
-      
-      // Create a dummy array buffer of appropriate size
-      const dummyData = new Uint8Array(Math.min(fileSize, 1024 * 1024)); // Limit to 1MB for simulation
-      for (let i = 0; i < dummyData.length; i++) {
-        dummyData[i] = Math.floor(Math.random() * 256);
-      }
-      
-      const blob = new Blob([dummyData], { type: `video/${format}` });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${video.fileName || 'video'}.${format}`;
-      
-      if (/Android|iPhone/i.test(navigator.userAgent)) {
-        a.target = '_blank';
-        a.rel = 'noopener';
-      }
-      
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-
-      toast.success(`Download started for: ${video.fileName || video.url}`);
-    } catch (error) {
-      console.error('Download error:', error);
-      toast.error("Download failed. Please try again.");
-    }
-  };
-
   const handleDownload = async () => {
     if (videos.length === 0) {
       toast.error("Please add at least one video URL");
@@ -180,27 +99,40 @@ const VideoDownloader = () => {
     }
 
     for (const video of videos) {
-      let progress = 0;
-      const interval = setInterval(() => {
-        progress += 5;
-        setVideos((prev) =>
-          prev.map((v) =>
-            v.id === video.id
-              ? {
-                  ...v,
-                  progress,
-                  estimatedTime: `${Math.ceil((100 - progress) / 5)} seconds`,
-                }
-              : v
-          )
+      try {
+        let progress = 0;
+        const progressInterval = setInterval(() => {
+          progress += 5;
+          setVideos((prev) =>
+            prev.map((v) =>
+              v.id === video.id
+                ? {
+                    ...v,
+                    progress,
+                    estimatedTime: `${Math.ceil((100 - progress) / 5)} seconds`,
+                  }
+                : v
+            )
+          );
+          
+          if (progress >= 100) {
+            clearInterval(progressInterval);
+          }
+        }, 1000);
+
+        await downloadVideo(
+          video.url,
+          video.format,
+          video.quality,
+          video.isMP3,
+          video.fileName || "video"
         );
-        
-        if (progress >= 100) {
-          clearInterval(interval);
-          simulateFileDownload(video);
-          toast.success(`Download complete: ${video.fileName || video.url}`);
-        }
-      }, 1000);
+
+        toast.success(`Download complete: ${video.fileName || video.url}`);
+      } catch (error) {
+        console.error("Download error:", error);
+        toast.error(`Download failed for ${video.fileName || video.url}`);
+      }
     }
 
     saveToHistory(videos);
@@ -246,59 +178,17 @@ const VideoDownloader = () => {
       </div>
 
       {showHistory && history.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: "auto" }}
-        >
-          <Card className="p-4 bg-secondary/10 backdrop-blur-sm border-gray-600">
-            <h3 className="text-lg font-semibold mb-4 text-white flex items-center gap-2">
-              <History className="w-5 h-5" />
-              Recent Downloads
-            </h3>
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {history.map((item) => (
-                <motion.div
-                  key={`${item.timestamp}-${item.video.id}`}
-                  whileHover={{ scale: 1.02 }}
-                  className="flex items-center justify-between p-3 rounded-lg hover:bg-secondary/20 transition-colors"
-                >
-                  <div className="flex-1 truncate mr-4">
-                    <div className="text-sm font-medium text-white flex items-center gap-2">
-                      <Youtube className="w-4 h-4 text-red-500" />
-                      {item.video.fileName || item.video.url}
-                    </div>
-                    <div className="text-xs text-gray-400">
-                      {new Date(item.timestamp).toLocaleString()}
-                    </div>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => redownloadFromHistory(item)}
-                    className="hover:bg-primary/20 text-white"
-                  >
-                    <Download className="w-4 h-4" />
-                  </Button>
-                </motion.div>
-              ))}
-            </div>
-          </Card>
-        </motion.div>
+        <DownloadHistoryComponent history={history} onRedownload={redownloadFromHistory} />
       )}
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {videos.map((video) => (
-          <VideoPreview
-            key={video.id}
-            video={video}
-            onQualityChange={handleQualityChange}
-            onFormatChange={handleFormatChange}
-            onMP3Toggle={handleMP3Toggle}
-            onAudioBitrateChange={handleAudioBitrateChange}
-            onFileNameChange={handleFileNameChange}
-          />
-        ))}
-      </div>
+      <VideoList
+        videos={videos}
+        onQualityChange={handleQualityChange}
+        onFormatChange={handleFormatChange}
+        onMP3Toggle={handleMP3Toggle}
+        onAudioBitrateChange={handleAudioBitrateChange}
+        onFileNameChange={handleFileNameChange}
+      />
 
       {videos.length > 0 && (
         <motion.div
