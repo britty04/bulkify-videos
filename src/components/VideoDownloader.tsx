@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import VideoInput from "./VideoInput";
 import VideoPreview from "./VideoPreview";
-import { Download } from "lucide-react";
+import { Download, History } from "lucide-react";
 import { Button } from "./ui/button";
+import { Card } from "./ui/card";
 
 interface VideoInfo {
   id: string;
@@ -15,10 +16,26 @@ interface VideoInfo {
   estimatedTime?: string;
   fileSize?: string;
   audioBitrate?: string;
+  fileName?: string;
+}
+
+interface DownloadHistory {
+  timestamp: number;
+  video: VideoInfo;
 }
 
 const VideoDownloader = () => {
   const [videos, setVideos] = useState<VideoInfo[]>([]);
+  const [history, setHistory] = useState<DownloadHistory[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+
+  useEffect(() => {
+    // Load download history from localStorage
+    const savedHistory = localStorage.getItem("downloadHistory");
+    if (savedHistory) {
+      setHistory(JSON.parse(savedHistory));
+    }
+  }, []);
 
   const handleUrlsSubmit = (urls: string[]) => {
     const newVideos = urls.map((url) => ({
@@ -29,6 +46,7 @@ const VideoDownloader = () => {
       isMP3: false,
       progress: 0,
       audioBitrate: "192kbps",
+      fileName: url.split("v=")[1] || url, // Basic extraction of video ID as filename
     }));
     setVideos([...videos, ...newVideos]);
   };
@@ -65,6 +83,27 @@ const VideoDownloader = () => {
     );
   };
 
+  const handleFileNameChange = (id: string, fileName: string) => {
+    setVideos(
+      videos.map((video) =>
+        video.id === id ? { ...video, fileName } : video
+      )
+    );
+  };
+
+  const saveToHistory = (completedVideos: VideoInfo[]) => {
+    const newHistory = [
+      ...completedVideos.map(video => ({
+        timestamp: Date.now(),
+        video,
+      })),
+      ...history,
+    ].slice(0, 50); // Keep only last 50 downloads
+    
+    setHistory(newHistory);
+    localStorage.setItem("downloadHistory", JSON.stringify(newHistory));
+  };
+
   const handleDownload = () => {
     if (videos.length === 0) {
       toast.error("Please add at least one video URL");
@@ -92,16 +131,78 @@ const VideoDownloader = () => {
         );
         if (progress >= 100) {
           clearInterval(interval);
-          toast.success(`Download complete: ${video.url}`);
+          toast.success(`Download complete: ${video.fileName || video.url}`);
+          
+          // Create download link
+          const blob = new Blob(['Simulated download content'], { type: 'application/octet-stream' });
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${video.fileName || 'video'}.${video.isMP3 ? 'mp3' : video.format.toLowerCase()}`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
         }
       }, 1000);
     });
+
+    // Save completed downloads to history
+    saveToHistory(videos);
+  };
+
+  const redownloadFromHistory = (historyItem: DownloadHistory) => {
+    setVideos([...videos, { ...historyItem.video, progress: 0 }]);
+    setShowHistory(false);
+    toast.success("Added to download queue");
   };
 
   return (
     <div className="space-y-6">
       <VideoInput onSubmit={handleUrlsSubmit} maxVideos={10 - videos.length} />
       
+      <div className="flex justify-end">
+        <Button
+          variant="outline"
+          onClick={() => setShowHistory(!showHistory)}
+          className="border-gray-700 hover:bg-secondary/20"
+        >
+          <History className="w-5 h-5 mr-2" />
+          Download History
+        </Button>
+      </div>
+
+      {showHistory && history.length > 0 && (
+        <Card className="p-4 bg-secondary/5 backdrop-blur-sm border-gray-700">
+          <h3 className="text-lg font-semibold mb-4">Recent Downloads</h3>
+          <div className="space-y-2">
+            {history.map((item) => (
+              <div
+                key={`${item.timestamp}-${item.video.id}`}
+                className="flex items-center justify-between p-2 rounded-lg hover:bg-secondary/20"
+              >
+                <div className="flex-1 truncate mr-4">
+                  <div className="text-sm font-medium">
+                    {item.video.fileName || item.video.url}
+                  </div>
+                  <div className="text-xs text-gray-400">
+                    {new Date(item.timestamp).toLocaleString()}
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => redownloadFromHistory(item)}
+                  className="hover:bg-primary/20"
+                >
+                  <Download className="w-4 h-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {videos.map((video) => (
           <VideoPreview
@@ -111,6 +212,7 @@ const VideoDownloader = () => {
             onFormatChange={handleFormatChange}
             onMP3Toggle={handleMP3Toggle}
             onAudioBitrateChange={handleAudioBitrateChange}
+            onFileNameChange={handleFileNameChange}
           />
         ))}
       </div>
